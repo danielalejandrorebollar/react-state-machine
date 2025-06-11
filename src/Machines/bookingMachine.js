@@ -1,4 +1,4 @@
- import { createMachine, assign } from 'xstate';
+ import { createMachine, assign, fromPromise } from 'xstate';
 
 import { fetchCountries } from "../Utils/api";
 
@@ -8,17 +8,17 @@ const fillCountries = {
     loading: {
       invoke: { //forma de invocar a un servicio
         id: 'getCountries',
-        src: () => fetchCountries,
+        src:  fromPromise(fetchCountries),
         onDone: { 
           target: 'success',
           actions: assign({
-            countries: (context, event) => event.data,
+            countries: ({_, event}) =>  event.output,
           })
         },
         onError: {
           target: 'failure',
           actions: assign({
-            error: 'Fallo el request',
+            error: ({_, event}) => event.error,
           })
         }
       }
@@ -33,94 +33,110 @@ const fillCountries = {
 };
 
 const bookingMachine = createMachine({
-  id: "buy",
-  initial: "inicial",
-  context:{
-    passengers: [],
-    selectedCountry: '',
-  },
-  states: {
-    inicial: {
-      on:{
-        START: {
-          target: "search",
-          // actions: 'imprimirInicio',
-        },
-      },
-      /* configuration */
+    id: "buy",
+    initial: "inicial",
+    context:{
+      passengers: [],
+      selectedCountry: '',
+      countries: [],
+      error: '',
     },
-    search: {
-      // entry: 'imprimirEntrada',
-      // exit: 'imprimirSalida',
-      on:{
-        CONTINUE:{
-          target:"passengers",
-          actions: assign({
-            selectedCountry: ({context, event}) => 
-            event.selectedCountry
-          }),
+    states: {
+      inicial: {
+        on:{
+          START: {
+            target: "search",
+            // actions: 'imprimirInicio',
+          },
         },
-        CANCEL: {
-          target:"inicial",
-          actions: assign(
-            ({context,event}) =>{
-              context.selectedCountry = '';
-              context.passengers = []
-              console.log(context)
-            })
-        }
+        /* configuration */
       },
-      ...fillCountries,
+      search: {
+        // entry: 'imprimirEntrada',
+        // exit: 'imprimirSalida',
+        on:{
+          CONTINUE:{
+            target:"passengers",
+            actions: assign({
+              selectedCountry: ({context, event}) =>{ console.log(context);
+              return event.selectedCountry}
+            }),
+          },
+          CANCEL: {
+            target:"inicial",
+            actions: assign(
+              ({context,event}) =>{
+                context.selectedCountry = '';
+                context.passengers = []
+                console.log(context)
+              })
+          }
+        },
+        ...fillCountries,
 
-    },
-    passengers: {
-      on:{
-        DONE:"tickets",
-        CANCEL:{
-          target:"inicial",
-          actions: 'reiniciarContext',
+      },
+      passengers: {
+        on:{
+          DONE:{
+            target:"tickets",
+            guard: "moreThanOnePassenger",
+
+          },
           
-          // assign(
-          //   ({context,event}) =>{
-          //     context.selectedCountry = '';
-          //     context.passengers = []
-          //     console.log(context)
-          //   })
-        },
-        ADD:{
-          target: 'passengers',
-          actions: assign(
-            ({context, event}) => {context.passengers.push(event.newPassenger); console.log("contexto",context)}
-          ),
+          CANCEL:{
+            target:"inicial",
+            actions: 'reiniciarContext',
+            
+            // assign(
+            //   ({context,event}) =>{
+            //     context.selectedCountry = '';
+            //     context.passengers = []
+            //     console.log(context)
+            //   })
+          },
+          ADD:{
+            target: 'passengers',
+            actions: assign(
+              ({context, event}) => {context.passengers.push(event.newPassenger); console.log("contexto",context)}
+            ),
 
+          }
         }
-      }
-    },
-    tickets: {
-      on:{
-        FINISH: {
-          target:"inicial",
-          actions: 'reiniciarContext',
+      },
+      tickets: {
+        after:{
+          5000:{
+            target:'inicial',
+            actions: 'reiniciarContext'
+          }
         },
-      }
-    },
+        on:{
+          FINISH: {
+            target:"inicial",
+            actions: 'reiniciarContext',
+          },
+        }
+      },
 
-    // Otros estados aquí
-  },
-},{
-  
-  actions:{
-    imprimirInicio (){ console.log('Imprimir inicio')},
-    imprimirEntrada (){ console.log('Imprimir Entrada del Search')},
-    imprimirSalida (){ console.log('Imprimir Salida del Search')},
-    reiniciarContext: assign(
-            {
-              selectedCountry : '',
-              passengers : [],
-              
-            })
+      // Otros estados aquí
+    },
+  },{
+    
+    actions:{
+      imprimirInicio (){ console.log('Imprimir inicio')},
+      imprimirEntrada (){ console.log('Imprimir Entrada del Search')},
+      imprimirSalida (){ console.log('Imprimir Salida del Search')},
+      reiniciarContext: assign(
+              {
+                selectedCountry : '',
+                passengers : [],
+                
+              })
+    },
+    guards:{
+      moreThanOnePassenger: ({context,event}) => {console.log(context); return context.passengers?.length > 0},
+    },
   }
-}
 );
 
 export  { bookingMachine, fillCountries };

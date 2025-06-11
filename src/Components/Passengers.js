@@ -47,13 +47,13 @@ export const Passengers = ({ state, send }) => {
         >
           Agregar Pasajero
         </button>
-        <button
+        {!!(passengers.length > 0 ) && <button
           className='Passengers-button Passenger-pay button'
           type="button"
           onClick={goToTicket}
         >
           Ver mi ticket
-        </button>
+        </button>}
       </div>
     </form>
   );
